@@ -3,7 +3,7 @@ import os
 import sys
 import numpy as np
 from deap import creator, base, tools, algorithms
-from FramsticksLib import FramsticksLib
+from FramsticksLibCompetition import FramsticksLibCompetition
 
 # Note: this may be less efficient than running the evolution directly in Framsticks, so if performance is key, compare both options.
 
@@ -133,12 +133,12 @@ def parseArguments():
 	parser = argparse.ArgumentParser(description='Run this program with "python -u %s" if you want to disable buffering of its output.' % sys.argv[0])
 	parser.add_argument('-path', type=ensureDir, required=True, help='Path to Framsticks library without trailing slash.')
 	parser.add_argument('-lib', required=False, help='Library name. If not given, "frams-objects.dll" (or .so or .dylib) is assumed depending on the platform.')
-	parser.add_argument('-sim', required=False, default="eval-allcriteria.sim", help="The name of the .sim file with settings for evaluation, mutation, crossover, and similarity estimation. If not given, \"eval-allcriteria.sim\" is assumed by default. Must be compatible with the \"standard-eval\" expdef. If you want to provide more files, separate them with a semicolon ';'.")
+	parser.add_argument('-sim', required=False, default="eval-allcriteria.sim;deterministic.sim;recording-body-coords.sim", help="The name of the .sim file with settings for evaluation, mutation, crossover, and similarity estimation. If not given, competition defaults are assumed. Must be compatible with the \"standard-eval\" expdef. If you want to provide more files, separate them with a semicolon ';'.")
 
 	parser.add_argument('-genformat', required=False, help='Genetic format for the simplest initial genotype, for example 4, 9, or B. If not given, f1 is assumed.')
 	parser.add_argument('-initialgenotype', required=False, help='The genotype used to seed the initial population. If given, the -genformat argument is ignored.')
 
-	parser.add_argument('-opt', required=True, help='optimization criteria: vertpos, velocity, distance, vertvel, lifespan, numjoints, numparts, numneurons, numconnections (or other as long as it is provided by the .sim file and its .expdef). For multiple criteria optimization, separate the names by the comma.')
+	parser.add_argument('-opt', required=False, default='COGpath', help='optimization criteria: COGpath for competition, or vertpos, velocity, distance, etc. For multiple criteria optimization, separate the names by the comma.')
 	parser.add_argument('-popsize', type=int, default=50, help="Population size, default: 50.")
 	parser.add_argument('-generations', type=int, default=5, help="Number of generations, default: 5.")
 	parser.add_argument('-tournament', type=int, default=5, help="Tournament size, default: 5.")
@@ -178,11 +178,13 @@ def main():
 	global parsed_args, OPTIMIZATION_CRITERIA  # needed in frams_evaluate(), so made global to avoid passing as arguments
 
 	# random.seed(123)  # see FramsticksLib.DETERMINISTIC below, set to True if you want full determinism
-	FramsticksLib.DETERMINISTIC = False  # must be set before the FramsticksLib() constructor call
+	FramsticksLibCompetition.DETERMINISTIC = False  # must be set before the constructor call
+	FramsticksLibCompetition.SIMPLE_FITNESS_FORMAT = False  # DEAP needs the dict structure
+	FramsticksLibCompetition.COMPETITOR_ID = 'SouperTeam_baseline'
 	parsed_args = parseArguments()
 	print("Argument values:", ", ".join(['%s=%s' % (arg, getattr(parsed_args, arg)) for arg in vars(parsed_args)]))
 	OPTIMIZATION_CRITERIA = parsed_args.opt.split(",")
-	framsLib = FramsticksLib(parsed_args.path, parsed_args.lib, parsed_args.sim)
+	framsLib = FramsticksLibCompetition(parsed_args.path, parsed_args.lib, parsed_args.sim)
 	toolbox = prepareToolbox(framsLib, OPTIMIZATION_CRITERIA, parsed_args.tournament, '1' if parsed_args.genformat is None else parsed_args.genformat, parsed_args.initialgenotype)
 	pop = toolbox.population(n=parsed_args.popsize)
 	hof = tools.HallOfFame(parsed_args.hof_size)
@@ -199,6 +201,10 @@ def main():
 		print(ind.fitness, '\t<--\t', ind[0])
 	if parsed_args.hof_savefile is not None:
 		save_genotypes(parsed_args.hof_savefile, OPTIMIZATION_CRITERIA, hof) # saves a *.gen file, convenient for loading into Framsticks. Otherwise, you can save the HOF in any file format you need.
+	try:
+		framsLib.end()
+	except SystemExit:
+		pass
 
 
 if __name__ == "__main__":
