@@ -2,6 +2,7 @@ import argparse
 import os
 import sys
 import numpy as np
+from time import perf_counter
 from deap import creator, base, tools, algorithms
 from FramsticksLibCompetition import FramsticksLibCompetition
 
@@ -195,7 +196,52 @@ def main():
 	stats.register("stddev", lambda fitness_criteria: filter_feasible_for_function(np.std, fitness_criteria))
 	stats.register("min", lambda fitness_criteria: filter_feasible_for_function(np.min, fitness_criteria))
 	stats.register("max", lambda fitness_criteria: filter_feasible_for_function(np.max, fitness_criteria))
-	pop, log = algorithms.eaSimple(pop, toolbox, cxpb=parsed_args.pxov, mutpb=parsed_args.pmut, ngen=parsed_args.generations, stats=stats, halloffame=hof, verbose=True)
+	# Custom generation loop with progress bar (replaces algorithms.eaSimple)
+	ngen = parsed_args.generations
+	cxpb = parsed_args.pxov
+	mutpb = parsed_args.pmut
+	start_time = perf_counter()
+
+	# Evaluate initial population
+	invalid_ind = [ind for ind in pop if not ind.fitness.valid]
+	fitnesses = list(map(toolbox.evaluate, invalid_ind))
+	for ind, fit in zip(invalid_ind, fitnesses):
+		ind.fitness.values = tuple(fit)
+	hof.update(pop)
+
+	for gen in range(1, ngen + 1):
+		offspring = toolbox.select(pop, len(pop))
+		offspring = [toolbox.clone(ind) for ind in offspring]
+
+		for i in range(1, len(offspring), 2):
+			if np.random.random() < cxpb:
+				offspring[i-1], offspring[i] = toolbox.mate(offspring[i-1], offspring[i])
+				del offspring[i-1].fitness.values
+				del offspring[i].fitness.values
+
+		for i in range(len(offspring)):
+			if np.random.random() < mutpb:
+				offspring[i], = toolbox.mutate(offspring[i])
+				del offspring[i].fitness.values
+
+		invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
+		fitnesses = list(map(toolbox.evaluate, invalid_ind))
+		for ind, fit in zip(invalid_ind, fitnesses):
+			ind.fitness.values = tuple(fit)
+
+		pop[:] = offspring
+		hof.update(pop)
+
+		# Progress bar
+		elapsed = perf_counter() - start_time
+		pct = gen / ngen * 100
+		bar_len = 25
+		filled = int(bar_len * gen / ngen)
+		bar = '#' * filled + '-' * (bar_len - filled)
+		best_val = max(ind.fitness.values[0] for ind in pop if is_feasible_fitness_criteria(ind.fitness.values)) if any(is_feasible_fitness_criteria(ind.fitness.values) for ind in pop) else 0.0
+		print(f"\r  [{bar}] {pct:5.1f}% | Gen: {gen}/{ngen} | Best: {best_val:.4f} | Time: {elapsed:.0f}s", end="", flush=True)
+
+	print()  # newline after progress bar
 	print('Best individuals:')
 	for ind in hof:
 		print(ind.fitness, '\t<--\t', ind[0])

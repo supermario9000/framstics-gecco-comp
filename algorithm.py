@@ -184,6 +184,26 @@ class AdaptiveEvolution:
 
         self.start_time = perf_counter()
 
+    def _print_progress(self, force=False, newline=False):
+        """Print a single-line progress bar showing eval budget and time."""
+        elapsed = perf_counter() - self.start_time
+        evals_used = self.total_evaluations
+        evals_max = MAX_EVALUATIONS - SAFETY_MARGIN
+        pct_evals = min(evals_used / evals_max * 100, 100.0)
+        bar_len = 25
+        filled = int(bar_len * pct_evals / 100)
+        bar = '#' * filled + '-' * (bar_len - filled)
+        best_str = f"{self.best_fitness:.4f}" if self.best_fitness is not None else "N/A"
+        line = (f"\r  [{bar}] {pct_evals:5.1f}% | "
+                f"Evals: {evals_used}/{evals_max} | "
+                f"Gen: {self.generation} | "
+                f"Best: {best_str} | "
+                f"Time: {elapsed:.0f}s")
+        if newline:
+            print(line)
+        else:
+            print(line, end="", flush=True)
+
     def _budget_remaining(self):
         return MAX_EVALUATIONS - SAFETY_MARGIN - self.total_evaluations
 
@@ -303,6 +323,7 @@ class AdaptiveEvolution:
                 self._update_best(geno, fit)
 
         print(f"  Initial best: {self.best_fitness}")
+        self._print_progress(force=True)
 
         # Main loop
         while not self._should_stop():
@@ -408,19 +429,9 @@ class AdaptiveEvolution:
 
             self.generations_without_improvement += 1
             self._adapt_parameters()
+            self._print_progress()
 
-            # Progress report every 10 generations
-            if self.generation % 10 == 0:
-                valid_count = sum(1 for f in fitnesses if is_valid(f))
-                elapsed = perf_counter() - self.start_time
-                print(f"  Gen {self.generation:4d} | Best: {self.best_fitness:.4f} | "
-                      f"Evals: {self.total_evaluations:6d} | "
-                      f"Valid: {valid_count}/{self.pop_size} | "
-                      f"MutRate: {self.mutation_rate:.2f} | "
-                      f"MutDepth: {self.mutation_depth} | "
-                      f"Stag: {self.generations_without_improvement} | "
-                      f"Time: {elapsed:.1f}s")
-
+        self._print_progress(force=True, newline=True)
         print(f"\n{'='*60}")
         print(f"Algorithm complete.")
         print(f"  Generations: {self.generation}")

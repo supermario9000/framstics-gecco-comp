@@ -35,14 +35,36 @@ def parse_args():
 
 
 def extract_best_fitness(output_text):
-    """Try to find the best fitness reported by FramsticksLibCompetition.end()."""
-    # FramsticksLibCompetition prints: "Finishing... best solution = <value>"
+    """Extract best fitness from output using multiple strategies.
+
+    Tries in order:
+    1. FramsticksLibCompetition.end() line: "best solution = <value>"
+    2. SouperTeam algorithm output: "Best fitness: <value>" or "Best: <value>"
+    3. DEAP generation table: the 'max' column from the last row
+    """
+    # Strategy 1: competition .end() output
     match = re.search(r"best solution\s*=\s*([\d.eE+\-]+|None)", output_text)
-    if match:
-        val = match.group(1)
-        if val == "None":
-            return None
-        return float(val)
+    if match and match.group(1) != "None":
+        return float(match.group(1))
+
+    # Strategy 2: SouperTeam progress lines like "Best: 1.2345" or "Best fitness: 1.2345"
+    best_val = None
+    for m in re.finditer(r"Best(?:\s+fitness)?:\s*([\d.eE+\-]+)", output_text):
+        val = float(m.group(1))
+        if best_val is None or val > best_val:
+            best_val = val
+    if best_val is not None:
+        return best_val
+
+    # Strategy 3: DEAP table rows — columns are: gen, nevals, avg, stddev, min, max
+    max_from_table = None
+    for m in re.finditer(r"^\d+\s+\d+\s+[\d.eE+\-]+\s+[\d.eE+\-]+\s+[\d.eE+\-]+\s+([\d.eE+\-]+)", output_text, re.MULTILINE):
+        val = float(m.group(1))
+        if max_from_table is None or val > max_from_table:
+            max_from_table = val
+    if max_from_table is not None:
+        return max_from_table
+
     return None
 
 
@@ -151,11 +173,25 @@ def main():
     baseline_best = extract_best_fitness(baseline_output)
     souper_best = extract_best_fitness(souper_output)
 
+    def status_label(rc):
+        if rc == -15 or rc == -9:
+            return "KILLED (timeout)"
+        elif rc == 0:
+            return "OK"
+        elif rc is None:
+            return "UNKNOWN"
+        else:
+            return f"exit code {rc}"
+
     print("\n" + "=" * 60)
     print("COMPARISON RESULTS")
     print("=" * 60)
-    print(f"  Baseline (DEAP eaSimple)  : {baseline_best}  (exit code {baseline_rc})")
-    print(f"  SouperTeam (Adaptive EA)  : {souper_best}  (exit code {souper_rc})")
+    print(f"  Baseline (DEAP eaSimple)  : {baseline_best}  [{status_label(baseline_rc)}]")
+    print(f"  SouperTeam (Adaptive EA)  : {souper_best}  [{status_label(souper_rc)}]")
+
+    if baseline_rc in (-15, -9) or souper_rc in (-15, -9):
+        print(f"\n  Note: One or both runs were killed by timeout ({args.timeout}s).")
+        print(f"  Increase -timeout for a fair comparison.")
 
     if baseline_best is not None and souper_best is not None:
         if souper_best > baseline_best:
@@ -167,7 +203,7 @@ def main():
             pct = (diff / abs(souper_best) * 100) if souper_best != 0 else float('inf')
             print(f"\n  >>> Baseline wins by {diff:.4f} ({pct:.1f}% better)")
         else:
-            print(f"\n  >>> Tie")
+            print(f"\n  >>> Tie (both {baseline_best})")
     else:
         print("\n  Could not parse fitness from one or both runs.")
         print("  Check the output above for errors.")
