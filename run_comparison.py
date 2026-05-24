@@ -16,6 +16,8 @@ import os
 import sys
 import subprocess
 import re
+import threading
+import time
 
 
 def parse_args():
@@ -27,6 +29,8 @@ def parse_args():
     parser.add_argument("-popsize", type=int, default=50, help="Population size. Default: 50")
     parser.add_argument("-generations", type=int, default=20,
                         help="Generations for baseline. Default: 20")
+    parser.add_argument("-timeout", type=int, default=3600,
+                        help="Max seconds per algorithm run. Default: 3600 (1h)")
     return parser.parse_args()
 
 
@@ -42,6 +46,72 @@ def extract_best_fitness(output_text):
     return None
 
 
+def run_with_progress(cmd, label, timeout):
+    """Run a subprocess with a live progress bar showing elapsed time."""
+    print("=" * 60)
+    print(f"RUNNING {label}")
+    print("Command:", " ".join(cmd))
+    print("=" * 60)
+
+    cwd = os.path.dirname(os.path.abspath(__file__))
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                            text=True, cwd=cwd)
+
+    output_lines = []
+    stop_event = threading.Event()
+
+    def reader(stream, dest):
+        for line in stream:
+            dest.append(line)
+        stream.close()
+
+    stdout_lines = []
+    stderr_lines = []
+    t_out = threading.Thread(target=reader, args=(proc.stdout, stdout_lines), daemon=True)
+    t_err = threading.Thread(target=reader, args=(proc.stderr, stderr_lines), daemon=True)
+    t_out.start()
+    t_err.start()
+
+    spinner = ['|', '/', '-', '\\']
+    start = time.time()
+    idx = 0
+    try:
+        while proc.poll() is None:
+            elapsed = time.time() - start
+            if elapsed > timeout:
+                proc.terminate()
+                proc.wait(timeout=5)
+                print(f"\n  [TIMEOUT] Killed after {timeout}s")
+                break
+            bar_len = 30
+            filled = int(bar_len * min(elapsed / timeout, 1.0))
+            bar = '#' * filled + '-' * (bar_len - filled)
+            pct = min(elapsed / timeout * 100, 100.0)
+            spin = spinner[idx % len(spinner)]
+            print(f"\r  {spin} [{bar}] {pct:5.1f}%  {elapsed:.0f}s / {timeout}s", end="", flush=True)
+            idx += 1
+            time.sleep(0.3)
+    except KeyboardInterrupt:
+        proc.terminate()
+        proc.wait(timeout=5)
+        print("\n  [INTERRUPTED]")
+
+    t_out.join(timeout=2)
+    t_err.join(timeout=2)
+
+    elapsed = time.time() - start
+    print(f"\r  Done [{('#' * 30)}] 100.0%  {elapsed:.1f}s elapsed          ")
+    print()
+
+    stdout_text = "".join(stdout_lines)
+    stderr_text = "".join(stderr_lines)
+    print(stdout_text)
+    if stderr_text:
+        print("[stderr]", stderr_text)
+
+    return stdout_text + stderr_text, proc.returncode
+
+
 def run_baseline(args):
     """Run FramsticksEvolution.py (DEAP eaSimple) via subprocess."""
     cmd = [
@@ -53,16 +123,7 @@ def run_baseline(args):
         "-popsize", str(args.popsize),
         "-generations", str(args.generations),
     ]
-    print("=" * 60)
-    print("RUNNING BASELINE (FramsticksEvolution.py / DEAP eaSimple)")
-    print("Command:", " ".join(cmd))
-    print("=" * 60)
-    result = subprocess.run(cmd, capture_output=True, text=True,
-                            cwd=os.path.dirname(os.path.abspath(__file__)))
-    print(result.stdout)
-    if result.stderr:
-        print("[stderr]", result.stderr)
-    return result.stdout + result.stderr, result.returncode
+    return run_with_progress(cmd, "BASELINE (FramsticksEvolution.py / DEAP eaSimple)", args.timeout)
 
 
 def run_souper(args):
@@ -74,16 +135,7 @@ def run_souper(args):
         "-genformat", args.genformat,
         "-popsize", str(args.popsize),
     ]
-    print("=" * 60)
-    print("RUNNING SOUPERTEAM (algorithm.py / Adaptive Evolution)")
-    print("Command:", " ".join(cmd))
-    print("=" * 60)
-    result = subprocess.run(cmd, capture_output=True, text=True,
-                            cwd=os.path.dirname(os.path.abspath(__file__)))
-    print(result.stdout)
-    if result.stderr:
-        print("[stderr]", result.stderr)
-    return result.stdout + result.stderr, result.returncode
+    return run_with_progress(cmd, "SOUPERTEAM (algorithm.py / Adaptive Evolution)", args.timeout)
 
 
 def main():
