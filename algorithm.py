@@ -52,6 +52,8 @@ MAX_MUTATION_DEPTH = 4         # max consecutive mutations on one individual
 # Budget
 MAX_EVALUATIONS = 100_000
 SAFETY_MARGIN = 500            # stop this many evals before hard limit
+MAX_TIME_SECONDS = 3600        # 60 minutes hard time limit
+TIME_SAFETY_MARGIN = 30        # stop this many seconds before hard limit
 
 # Initialization diversity
 INIT_MUTATION_DEPTHS = [1, 2, 3, 4, 5, 6]  # varied complexity for initial pop
@@ -193,12 +195,16 @@ class AdaptiveEvolution:
         bar_len = 25
         filled = int(bar_len * pct_evals / 100)
         bar = '#' * filled + '-' * (bar_len - filled)
+        time_left = max(0, MAX_TIME_SECONDS - TIME_SAFETY_MARGIN - elapsed)
         best_str = f"{self.best_fitness:.4f}" if self.best_fitness is not None else "N/A"
+        mins_left = int(time_left // 60)
+        secs_left = int(time_left % 60)
         line = (f"\r  [{bar}] {pct_evals:5.1f}% | "
                 f"Evals: {evals_used}/{evals_max} | "
                 f"Gen: {self.generation} | "
                 f"Best: {best_str} | "
-                f"Time: {elapsed:.0f}s")
+                f"Time: {elapsed:.0f}s | "
+                f"Left: {mins_left}m{secs_left:02d}s")
         if newline:
             print(line)
         else:
@@ -207,8 +213,12 @@ class AdaptiveEvolution:
     def _budget_remaining(self):
         return MAX_EVALUATIONS - SAFETY_MARGIN - self.total_evaluations
 
+    def _time_remaining(self):
+        elapsed = perf_counter() - self.start_time
+        return MAX_TIME_SECONDS - TIME_SAFETY_MARGIN - elapsed
+
     def _should_stop(self):
-        return self._budget_remaining() <= 0
+        return self._budget_remaining() <= 0 or self._time_remaining() <= 0
 
     def _update_best(self, genotype, fitness):
         if fitness is not None and (self.best_fitness is None or fitness > self.best_fitness):
