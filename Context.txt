@@ -1,0 +1,148 @@
+GECCO 2026: Automated Design Competition
+Scope
+The competition concerns the development of an efficient algorithm to
+optimize active 3D designs (i.e., simulated agents or robots). The
+simulation environment is Framsticks, and participants have a Python
+binding available to the native simulator library, so algorithms should
+be implemented entirely in Python.
+The goal of the competition is to propose an algorithm that will discover
+agents whose center of gravity moves in the desired way in different
+environments used during optimization. The properties of the desired
+movement are defined by the fitness function (unknown to participants);
+examples of such movements are: following a specific path in 3D,
+swinging or jumping. The set of parameters that define each
+environment (such as gravity, water level, terrain, and initial agent
+rotation) is published, but their values will be set during the evaluation
+phase. Each submitted algorithm will be tested to optimize agents in 10
+different settings (environments and desired movements). These settings
+will be the same for all participants.
+The submitted search algorithm should represent solutions using f0 or f1
+genetic encodings, or a new encoding that is based on them and
+ultimately produces genotypes in these encodings. If needed, parameter
+values and probabilities of mutation and crossover may be modified and
+adjusted by participants.
+Each submission must include a brief description of the algorithm and
+standalone Python source code. The source code may utilize any freely
+and publicly available libraries, but participants should ensure that they
+provide instructions on how to install dependencies, allowing the
+organizers to execute the submitted algorithm. The algorithm will not
+have access to the Internet.
+
+Judging
+Algorithms submitted by the participants will be run in 10 different
+settings (world configurations and desired movements), with each run
+being repeated 20 times. During each run, the best fitness will be saved
+and returned as the outcome of the algorithm. For each setting, this
+fitness will be averaged over 20 runs, and then normalized taking into 
+account the results of all submissions in this setting. The average of
+normalized values obtained for each algorithm will constitute the final
+score of the algorithm. The organizers will make every effort to obtain
+fair fitness values by repeating optimization runs in case of potential
+problems. Additionally, as a basic reference level, a baseline algorithm
+(the winner from previous years) will be run using the same conditions
+and constraints as the submitted entries.
+
+In summary:
+10 settings (world configurations and fitness functions)
+20 repeated runs per setting, each run returns best fitness
+These 20 best fitness values are averaged
+The resulting average is normalized taking into account other
+submissions
+Average of 10 normalized values constitutes the final score of the
+algorithm
+
+The submitted algorithm with the highest final score that exceeded the
+performance of the baseline will be considered the winner. In case the
+best submitted algorithm performs worse than the baseline, this
+algorithm will be considered the best submission, but no winner will be
+announced. Summarized results of all submissions and the baseline will
+be published in numerical and graphical form.
+
+Algorithm evaluation
+The simulation parameters that may be modified in each of the 10 world
+configurations are: lifespan of a creature ("starting energy" and "idle
+metabolism"), world size and heightfield (map), water level, gravity,
+creature stabilization period settings, and creature body constraints
+(minimal and maximal joint length).
+The maximized fitness functions used in each of the 10 settings will
+evaluate the similarity of the path of the center of gravity (COG) to some
+desired path. This may be, for example, 1.0/RMSE of individual points in
+3D, i.e., COG coordinates sampled in each simulation step, compared to
+the desired straight line. Another example would be only considering the
+vertical axis (z) of the COG trajectory and estimating how similar it is to
+the desired function by calculating 1.0/(sum of
+absolute differences).
+Part of the world configuration consists of constraints on the complexity
+of a feasible solution (for example, the number of genotype characters
+not exceeding 3000, or the number of neural connections less than 30).
+If a solution is evaluated that violates constraints of a given world
+configuration, the returned fitness of such a solution may be either
+decreased (the solution penalized, fitness less attractive, fitness
+landscape depressed) or the returned fitness may be None, indicating an
+invalid solution/genotype.
+
+The algorithm will be stopped and will return the best fitness found so far
+after (1) the number of function evaluation calls exceeds 100k, or (2) the
+running time of one hour (excluding solution evaluation time) is
+exceeded, or (3) the algorithm itself calls the function, or (4) a
+Python exception stops the execution. The memory limit is 2 GB. The
+submitted algorithm should be single-process, single-threaded, no GPU.
+No more than one submission per participant is allowed.
+
+How to start – installation
+Let's prepare the Framsticks environment and the Python evolution
+interface to work.
+Download the Framsticks simulator – the most recent zip from
+here and uncompress it in some directory. Note the directory
+where the frams-objects.dll/.so/.dylib library is – the Python
+scripts will need it.
+Download "framspy" (Python interface to Framsticks) which is this
+entire directory. It is best to download it using the svn client (
+) or the git client ( ); the https certificate
+encrypts but may not confirm the website's identity, so you may
+encounter warnings.
+Verify the interoperation of the Python code and the simulator –
+make sure that this works without errors:
+.
+Install the DEAP framework in Python.
+Copy all files from the downloaded "framspy" repository to
+the directory in the uncompressed Framsticks distribution.
+Edit and update the
+path. Then, run this script and ensure
+that evolution works. Converting this script for Linux is
+straightforward.
+The Python evolution interface ( ) is just an
+example of an optimization algorithm. Participants should submit their
+original search algorithms.
+To test your algorithm in a setting very similar to the competition, use
+. Read the contents of this file carefully and
+make your algorithm use the class.
+If you are new to the Framsticks simulator, parts 1–5 and 7 of the
+tutorial provide a good introduction.
+Contact support (at) framsticks.com if you encounter any problems or
+require assistance.
+
+Submission
+It is recommended to contact the organizers and send a preliminary
+version of the algorithm a week before the deadline to ensure no
+surprises and unexpected problems with running the final version. To
+ensure everything runs smoothly, test your algorithm in a clean
+environment (no extra files/directories/dependencies), not in your
+development environment.
+Send the following to maciej.komosinski (at) cs.put.poznan.pl by the
+deadline of 15 June 2026:
+the sources of the algorithm zipped,
+the user/team/algorithm name,
+a concise description of the algorithm,
+a specification on how to install and run it,
+names of team members and their affiliations,
+if you are interested in obtaining the GECCO certificate if classified
+(results above baseline),
+a consent to publish the names of team participants if classified
+(for example, during the GECCO competition session),
+a consent to publish or use the algorithm sources in future editions
+of the competition.
+Participants also have an option to describe their submitted algorithm in
+a 2-page abstract/poster paper (the deadline for this submission is April
+14/check the GECCO website). The paper will be reviewed and must be
+submitted through the official linklings site.
