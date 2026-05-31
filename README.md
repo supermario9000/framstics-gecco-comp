@@ -343,4 +343,3 @@ A: Wall-clock time minus evaluation time (Framsticks sim time is excluded).
 - Previous winners used specialized evolutionary strategies
 - Baseline performance is available for reference
 - All code is evaluated in controlled environment (no internet)
-
